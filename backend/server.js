@@ -6,6 +6,10 @@ import { Server } from "socket.io";
 import connectDB from "./config/db.js";
 import userRoutes from "./routes/userRoutes.js";
 import sessionRoutes from "./routes/sessionRoutes.js";
+import jobRoutes from "./routes/jobRoutes.js";
+import applicationRoutes from "./routes/applicationRoutes.js";
+import resumeRoutes from "./routes/resumeRoutes.js";
+import leaderboardRoutes from "./routes/leaderboardRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 
 dotenv.config();
@@ -48,6 +52,10 @@ app.get("/", (req, res) => {
 
 app.use("/api/users", userRoutes);
 app.use("/api/sessions", sessionRoutes);
+app.use("/api/jobs", jobRoutes);
+app.use("/api/applications", applicationRoutes);
+app.use("/api/resume", resumeRoutes);
+app.use("/api/leaderboard", leaderboardRoutes);
 
 io.on("connection", (socket) => {
     console.log(`A user Connected ${socket.id}`);

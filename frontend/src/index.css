@@ -2,7 +2,80 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    @apply text-slate-800 overflow-x-hidden min-h-screen bg-white transition-colors duration-500 ease-in-out;
+  }
+  
+  /* Dynamic Light Background - Aesthetic Mesh */
+  body:not(.dark) {
+    background-color: #f8fafc;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(20, 184, 166, 0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(244, 63, 94, 0.05) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(56, 189, 248, 0.08) 0px, transparent 50%);
+    background-attachment: fixed;
+    background-size: 200% 200%;
+    animation: gradient-xy 20s ease infinite;
+  }
 
-body {
-  @apply bg-gray-50;
+  /* Dynamic Dark Background - Galaxy Theme */
+  .dark body {
+    @apply text-slate-200;
+    background-color: #000000;
+    background-image: 
+      radial-gradient(circle at 15% 50%, rgba(183, 0, 255, 0.2) 0%, transparent 50%),
+      radial-gradient(circle at 85% 30%, rgba(0, 247, 255, 0.2) 0%, transparent 50%),
+      url("data:image/svg+xml,%3Csvg width='800' height='800' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff'%3E%3Ccircle cx='120' cy='180' r='2' opacity='0.9'/%3E%3Ccircle cx='450' cy='100' r='1.5' opacity='0.8'/%3E%3Ccircle cx='700' cy='600' r='2' opacity='0.9'/%3E%3Ccircle cx='50' cy='400' r='1' opacity='0.6'/%3E%3Ccircle cx='350' cy='350' r='1' opacity='0.6'/%3E%3Ccircle cx='600' cy='200' r='1' opacity='0.5'/%3E%3Ccircle cx='200' cy='650' r='1' opacity='0.7'/%3E%3Ccircle cx='100' cy='700' r='1.5' opacity='0.8'/%3E%3Ccircle cx='550' cy='750' r='1' opacity='0.5'/%3E%3Ccircle cx='750' cy='300' r='1' opacity='0.6'/%3E%3Ccircle cx='20' cy='20' r='0.5' opacity='0.4'/%3E%3Ccircle cx='80' cy='250' r='0.5' opacity='0.3'/%3E%3Ccircle cx='220' cy='100' r='0.5' opacity='0.4'/%3E%3Ccircle cx='300' cy='500' r='0.5' opacity='0.3'/%3E%3Ccircle cx='400' cy='700' r='0.5' opacity='0.4'/%3E%3Ccircle cx='650' cy='450' r='0.5' opacity='0.3'/%3E%3Ccircle cx='500' cy='500' r='0.5' opacity='0.4'/%3E%3Ccircle cx='800' cy='100' r='0.5' opacity='0.3'/%3E%3C/g%3E%3C/svg%3E");
+    background-size: 100% 100%, 100% 100%, 400px 400px;
+    background-attachment: fixed;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-50 dark:bg-[#03030b]; 
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 dark:bg-[#1a1a3a] rounded-[4px]; 
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400 dark:bg-space-500; 
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-white/70 dark:bg-space-800/60 backdrop-blur-xl border border-white/50 dark:border-white/5 shadow-2xl dark:shadow-none transition-all duration-300;
+  }
+  
+  .glass-input {
+    @apply bg-white/60 dark:bg-space-900/50 border border-slate-200 dark:border-white/10 focus:border-teal-500 dark:focus:border-neon-cyan/50 focus:ring-1 focus:ring-teal-500 dark:focus:ring-neon-cyan/50 backdrop-blur-md text-slate-800 dark:text-slate-200 transition-all duration-300;
+  }
+
+  .text-glow {
+    @apply drop-shadow-md dark:drop-shadow-none transition-all duration-300;
+  }
+  
+  .dark .text-glow {
+    text-shadow: 0 0 15px rgba(0, 247, 255, 0.4);
+  }
+
+  .text-glow-purple {
+    @apply drop-shadow-md dark:drop-shadow-none transition-all duration-300;
+  }
+
+  .dark .text-glow-purple {
+    text-shadow: 0 0 15px rgba(183, 0, 255, 0.4);
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-blue-600 dark:from-neon-cyan dark:to-neon-purple transition-all duration-300;
+  }
 }

@@ -115,14 +115,25 @@ export const sessionSlice = createSlice({
                 state.isGenerating = false;
             }
 
+            if (session && status === 'QUESTIONS_READY') {
+                const exists = state.sessions.find(s => s._id === session._id);
+                if (!exists) {
+                    state.sessions.unshift(session);
+                }
+            }
+
             if (session && state.activeSession && state.activeSession._id === sessionId) {
-                state.activeSession.questions = state.activeSession.questions.map((currentQ, index) => {
-                    const incomingQ = session.questions[index];
-                    if (!incomingQ) return currentQ;
-                    if (incomingQ.isEvaluated) return incomingQ;
-                    if (currentQ.isSubmitted && !incomingQ.isSubmitted) return currentQ;
-                    return incomingQ;
-                });
+                if (state.activeSession.questions.length === 0 && session.questions && session.questions.length > 0) {
+                    state.activeSession.questions = session.questions;
+                } else {
+                    state.activeSession.questions = state.activeSession.questions.map((currentQ, index) => {
+                        const incomingQ = session.questions[index];
+                        if (!incomingQ) return currentQ;
+                        if (incomingQ.isEvaluated) return incomingQ;
+                        if (currentQ.isSubmitted && !incomingQ.isSubmitted) return currentQ;
+                        return incomingQ;
+                    });
+                }
                 state.activeSession.overallScore = session.overallScore;
                 state.activeSession.status = session.status;
                 state.activeSession.metrics = session.metrics;

@@ -7,8 +7,12 @@ const questionSchema = new mongoose.Schema({
     },
     questionType:{
         type:String,
-        enum:["coding","oral"],
+        enum:["coding","oral","mcq"],
         required:true
+    },
+    options: {
+        type: [String],
+        default: []
     },
     idealAnswer:{
         type:String,
@@ -61,7 +65,7 @@ const sessionSchema= new mongoose.Schema({
     },
     interviewType:{
         type:String,
-        enum:["oral-only","coding-mix"],
+        enum:["oral-only","coding-mix","mcq"],
         required:true
     },
     status:{

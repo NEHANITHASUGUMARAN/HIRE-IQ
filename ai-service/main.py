@@ -8,9 +8,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from typing import Optional
-import ollama
+from ollama import AsyncClient
 import whisper
 from pydub import AudioSegment
+import asyncio
+
+ollama_lock = asyncio.Semaphore(10) # Increased concurrency to allow parallel generation/evalulation
 
 load_dotenv()
 
@@ -47,6 +50,7 @@ class QuestionResquest(BaseModel):
 
 class QuestionResponse(BaseModel):
     questions:list[str]
+    options:Optional[list[list[str]]]=None
     model_used:str
 
 class EvaluationRequest(BaseModel):
@@ -63,6 +67,15 @@ class EvaluationResponse(BaseModel):
     aiFeedback:str
     idealAnswer:str
 
+class ResumeRequest(BaseModel):
+    resume_text: str
+    job_role: str
+
+class ResumeResponse(BaseModel):
+    skillsFound: list[str]
+    experienceMatch: int
+    feedback: str
+
 @app.get("/")
 async def root():
     return {"message":"Hello from AI Interviewer Microservice !","model":OLLAMA_MODEL_NAME}
@@ -72,37 +85,58 @@ async def root():
 async def generate_questions(request:QuestionResquest):
    
     try:
-        if request.interview_type=="coding-mix":
-            coding_count=int(request.count*0.2)
-            oral_oral=int(request.count)-int(coding_count)
-
-            intruction=(
-                f"The first {coding_count} questions MUST be coding challenge requiring function implementation."
-                f"The remaining {oral_oral} questions MUST be conceptual oral questions."
-            )
-        else :
-            intruction="All questions MUST be conceptual oral questions. Do Not generate any coding or implementation challenges."
-
-        system_prompt=(
-            "You are a professional technical interviewer. "
-            "Task: Generate interview questions. No conversational text or numbering. "
-            f"Crucial : {intruction}"
-            "Output exactly one question per line. "
-        )
-
         user_prompt=(
             f"Generate exactly {request.count} unique interview questions for a {request.level}  level {request.role} "
         )
-        response=ollama.generate(
-            model=OLLAMA_MODEL_NAME,
-            prompt=user_prompt,
-            system=system_prompt,
-            options={"temperature":0.6}
-        )
+        if request.interview_type == "mcq":
+            system_prompt = (
+                "You are a professional technical interviewer. "
+                "Output ONLY a valid JSON object matching this structure: "
+                f"{{\"questions\": [{{\"question\": \"...\", \"options\": [\"A\", \"B\", \"C\", \"D\"]}}]}}. "
+                "Ensure exactly 4 options per question. NO conversational text."
+            )
+            async with ollama_lock:
+                response = await AsyncClient().generate(
+                    model=OLLAMA_MODEL_NAME,
+                    prompt=user_prompt,
+                    system=system_prompt,
+                    format="json",
+                    options={"temperature": 0.4, "num_ctx": 2048, "num_predict": 512}
+                )
+            raw_data = json.loads(response['response'].strip())
+            q_list = [q["question"] for q in raw_data.get("questions", [])]
+            o_list = [q.get("options", []) for q in raw_data.get("questions", [])]
+            return QuestionResponse(questions=q_list[:request.count], options=o_list[:request.count], model_used=OLLAMA_MODEL_NAME)
+        else:
+            if request.interview_type=="coding-mix":
+                coding_count=int(request.count*0.2)
+                oral_oral=int(request.count)-int(coding_count)
 
-        raw_text=response['response'].strip()
-        questions=[q.strip() for q in raw_text.split('\n') if q.strip()]
-        return QuestionResponse(questions=questions[:request.count],model_used=OLLAMA_MODEL_NAME)
+                intruction=(
+                    f"The first {coding_count} questions MUST be coding challenge requiring function implementation."
+                    f"The remaining {oral_oral} questions MUST be conceptual oral questions."
+                )
+            else :
+                intruction="All questions MUST be conceptual oral questions. Do Not generate any coding or implementation challenges."
+
+            system_prompt=(
+                "You are a professional technical interviewer. "
+                "Task: Generate interview questions. No conversational text or numbering. "
+                f"Crucial : {intruction}"
+                "Output exactly one question per line. "
+            )
+            
+            async with ollama_lock:
+                response = await AsyncClient().generate(
+                    model=OLLAMA_MODEL_NAME,
+                    prompt=user_prompt,
+                    system=system_prompt,
+                    options={"temperature": 0.4, "num_ctx": 2048, "num_predict": 512}
+                )
+
+            raw_text=response['response'].strip()
+            questions=[q.strip() for q in raw_text.split('\n') if q.strip()]
+            return QuestionResponse(questions=questions[:request.count],model_used=OLLAMA_MODEL_NAME)
 
     except Exception as e:
         raise HTTPException(status_code=500,detail=str(e))
@@ -133,7 +167,12 @@ async def transcribe_audio(file:UploadFile=File(...)):
 @app.post("/evaluate",response_model=EvaluationResponse)
 async def evaluate(request:EvaluationRequest):
     try:
-        if request.question_type=="oral":
+        if request.question_type=="mcq":
+            assessment_intruction=(
+                "This is a multiple choice question. Evaluate the user's selected choice (Verbal Answer output string). "
+                "CRITICAL: If their chosen string implies the objectively correct technical answer, SCORE 100. Otherwise, SCORE 0. "
+            )
+        elif request.question_type=="oral":
             assessment_intruction=(
                 "This is a conceptual oral question. Focus purely on candidate's veral explanation. "
                 "Ignore any code blocks. "
@@ -147,10 +186,11 @@ async def evaluate(request:EvaluationRequest):
             )
         
         system_prompt=(
-            "You are a sstrict technical interviewer. "
+            "You are a strict technical interviewer. "
             "Do NOT hallucinate positive reviews for bad input. "
+            "CRITICAL TIME CONSTRAINT: Keep aiFeedback VERY SHORT (1-2 sentences maximum). Keep idealAnswer EXTREMELY SHORT. "
             "RULE 1: If the answer is gibberish, irrelevant, or missing, return 'technicalScore':0 and 'confidenceScore':0. "
-            "RULE 2: For 'idealAnswer', provide a clean Markdown string.Do NOT return a nested JSON object. "
+            "RULE 2: For 'idealAnswer', provide a short clean string. Do NOT return a nested JSON object. "
             f"Context:{assessment_intruction}"
             "Respond ONLY with a JSON object. "
             "Required keys: 'technicalScore' (0-100), 'confidenceScore' (0-100), 'aiFeedback', 'idealAnswer'. "
@@ -163,13 +203,14 @@ async def evaluate(request:EvaluationRequest):
             f"Verbal Answer: {request.user_answer or 'No verbal answer provided'}\n"
             f"Code Answer: {request.user_code or 'No code provided'}\n"
         )
-        response=ollama.generate(
-            model=OLLAMA_MODEL_NAME,
-            prompt=user_prompt,
-            system=system_prompt,
-            format="json",
-            options={"temperature":0.1}
-        )
+        async with ollama_lock:
+            response = await AsyncClient().generate(
+                model=OLLAMA_MODEL_NAME,
+                prompt=user_prompt,
+                system=system_prompt,
+                format="json",
+                options={"temperature": 0.0, "num_ctx": 1500, "num_predict": 100}
+            )
         response_text=response['response'].strip()
         try:
             evaluation_data=json.loads(response_text)
@@ -191,6 +232,38 @@ async def evaluate(request:EvaluationRequest):
     except Exception as e:
         print(f"Failed to generate response: {e}")
         raise HTTPException(status_code=500,detail=str(e))
+        
+@app.post("/analyze-resume", response_model=ResumeResponse)
+async def analyze_resume(request: ResumeRequest):
+    try:
+        system_prompt = (
+            "You are an expert AI Technical Recruiter. "
+            "Analyze the provided Resume Text against the Job Role. "
+            "Return ONLY a JSON object exactly matching this structure with NO markdown or conversational text: "
+            "{\"skillsFound\": [\"React\", \"Node\"], \"experienceMatch\": 85, \"feedback\": \"Good fit but lacks AWS.\"} "
+            "experienceMatch MUST be an integer between 0 and 100."
+        )
+        user_prompt = f"Job Role: {request.job_role}\n\nResume Text:\n{request.resume_text}"
+
+        async with ollama_lock:
+            response = await AsyncClient().generate(
+                model=OLLAMA_MODEL_NAME,
+                prompt=user_prompt,
+                system=system_prompt,
+                format="json",
+                options={"temperature": 0.2, "num_ctx": 2048, "num_predict": 150}
+            )
+        
+        response_text = response['response'].strip()
+        data = json.loads(response_text)
+        
+        return ResumeResponse(
+            skillsFound=data.get("skillsFound", []),
+            experienceMatch=int(data.get("experienceMatch", 50)),
+            feedback=data.get("feedback", "No feedback provided.")
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
         
 
 if __name__ == "__main__":

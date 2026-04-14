@@ -27,6 +27,19 @@ const userSchema=mongoose.Schema({
         type:String,
         default:"MERN Stack Developer"
     },
+    accountRole: {
+        type: String,
+        enum: ['student', 'recruiter'],
+        default: 'student'
+    },
+    totalScore: {
+        type: Number,
+        default: 0
+    },
+    skills: {
+        type: [String],
+        default: []
+    }
 },{
     timestamps:true
 })
