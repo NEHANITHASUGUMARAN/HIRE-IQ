@@ -10,6 +10,7 @@ import { BrowserRouter as Router } from 'react-router-dom'
 import { ThemeProvider } from './context/ThemeContext.jsx'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+axios.defaults.baseURL = import.meta.env.VITE_API_URL;
 
 axios.interceptors.response.use(
   (response) => response,

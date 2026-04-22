@@ -8,17 +8,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from typing import Optional
-from ollama import AsyncClient
+import google.generativeai as genai
 import whisper
 from pydub import AudioSegment
 import asyncio
 
-ollama_lock = asyncio.Semaphore(10) # Increased concurrency to allow parallel generation/evalulation
+api_lock = asyncio.Semaphore(5) # Concurrency control for API rate limits
 
 load_dotenv()
 
 AI_SERVICE_PORT = int(os.getenv("AI_SERVICE_PORT",8000))
-OLLAMA_MODEL_NAME=os.getenv("OLLAMA_MODEL_NAME","mistral")
+GEMINI_MODEL_NAME=os.getenv("GEMINI_MODEL_NAME","gemini-1.5-flash")
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 app=FastAPI(title="AI Interviewer Microservice",version="1.0")
 
@@ -72,13 +73,15 @@ class ResumeRequest(BaseModel):
     job_role: str
 
 class ResumeResponse(BaseModel):
+    atsScore: int
     skillsFound: list[str]
-    experienceMatch: int
+    missingSkills: list[str]
+    improvements: list[str]
     feedback: str
 
 @app.get("/")
 async def root():
-    return {"message":"Hello from AI Interviewer Microservice !","model":OLLAMA_MODEL_NAME}
+    return {"message":"Hello from AI Interviewer Microservice !","model":GEMINI_MODEL_NAME}
 
 
 @app.post("/generate-questions",response_model=QuestionResponse)
@@ -95,18 +98,22 @@ async def generate_questions(request:QuestionResquest):
                 f"{{\"questions\": [{{\"question\": \"...\", \"options\": [\"A\", \"B\", \"C\", \"D\"]}}]}}. "
                 "Ensure exactly 4 options per question. NO conversational text."
             )
-            async with ollama_lock:
-                response = await AsyncClient().generate(
-                    model=OLLAMA_MODEL_NAME,
-                    prompt=user_prompt,
-                    system=system_prompt,
-                    format="json",
-                    options={"temperature": 0.4, "num_ctx": 2048, "num_predict": 512}
+            async with api_lock:
+                ai_model = genai.GenerativeModel(
+                    model_name=GEMINI_MODEL_NAME,
+                    system_instruction=system_prompt
                 )
-            raw_data = json.loads(response['response'].strip())
+                response = await ai_model.generate_content_async(
+                    user_prompt,
+                    generation_config=genai.GenerationConfig(
+                        response_mime_type="application/json",
+                        temperature=0.4
+                    )
+                )
+            raw_data = json.loads(response.text.strip())
             q_list = [q["question"] for q in raw_data.get("questions", [])]
             o_list = [q.get("options", []) for q in raw_data.get("questions", [])]
-            return QuestionResponse(questions=q_list[:request.count], options=o_list[:request.count], model_used=OLLAMA_MODEL_NAME)
+            return QuestionResponse(questions=q_list[:request.count], options=o_list[:request.count], model_used=GEMINI_MODEL_NAME)
         else:
             if request.interview_type=="coding-mix":
                 coding_count=int(request.count*0.2)
@@ -126,17 +133,21 @@ async def generate_questions(request:QuestionResquest):
                 "Output exactly one question per line. "
             )
             
-            async with ollama_lock:
-                response = await AsyncClient().generate(
-                    model=OLLAMA_MODEL_NAME,
-                    prompt=user_prompt,
-                    system=system_prompt,
-                    options={"temperature": 0.4, "num_ctx": 2048, "num_predict": 512}
+            async with api_lock:
+                ai_model = genai.GenerativeModel(
+                    model_name=GEMINI_MODEL_NAME,
+                    system_instruction=system_prompt
+                )
+                response = await ai_model.generate_content_async(
+                    user_prompt,
+                    generation_config=genai.GenerationConfig(
+                        temperature=0.4
+                    )
                 )
 
-            raw_text=response['response'].strip()
+            raw_text=response.text.strip()
             questions=[q.strip() for q in raw_text.split('\n') if q.strip()]
-            return QuestionResponse(questions=questions[:request.count],model_used=OLLAMA_MODEL_NAME)
+            return QuestionResponse(questions=questions[:request.count],model_used=GEMINI_MODEL_NAME)
 
     except Exception as e:
         raise HTTPException(status_code=500,detail=str(e))
@@ -203,15 +214,19 @@ async def evaluate(request:EvaluationRequest):
             f"Verbal Answer: {request.user_answer or 'No verbal answer provided'}\n"
             f"Code Answer: {request.user_code or 'No code provided'}\n"
         )
-        async with ollama_lock:
-            response = await AsyncClient().generate(
-                model=OLLAMA_MODEL_NAME,
-                prompt=user_prompt,
-                system=system_prompt,
-                format="json",
-                options={"temperature": 0.0, "num_ctx": 1500, "num_predict": 100}
+        async with api_lock:
+            ai_model = genai.GenerativeModel(
+                model_name=GEMINI_MODEL_NAME,
+                system_instruction=system_prompt
             )
-        response_text=response['response'].strip()
+            response = await ai_model.generate_content_async(
+                user_prompt,
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json",
+                    temperature=0.0
+                )
+            )
+        response_text=response.text.strip()
         try:
             evaluation_data=json.loads(response_text)
             if 'idealAnswer' in evaluation_data and not isinstance(evaluation_data['idealAnswer'],str):
@@ -237,29 +252,35 @@ async def evaluate(request:EvaluationRequest):
 async def analyze_resume(request: ResumeRequest):
     try:
         system_prompt = (
-            "You are an expert AI Technical Recruiter. "
+            "You are an expert AI Technical Recruiter and ATS (Applicant Tracking System). "
             "Analyze the provided Resume Text against the Job Role. "
             "Return ONLY a JSON object exactly matching this structure with NO markdown or conversational text: "
-            "{\"skillsFound\": [\"React\", \"Node\"], \"experienceMatch\": 85, \"feedback\": \"Good fit but lacks AWS.\"} "
-            "experienceMatch MUST be an integer between 0 and 100."
+            "{\"atsScore\": 85, \"skillsFound\": [\"React\"], \"missingSkills\": [\"AWS\"], \"improvements\": [\"Add quantifiable metrics\"], \"feedback\": \"Good fit but...\"} "
+            "atsScore MUST be an integer between 0 and 100 based on standard industry ATS evaluation metrics."
         )
         user_prompt = f"Job Role: {request.job_role}\n\nResume Text:\n{request.resume_text}"
 
-        async with ollama_lock:
-            response = await AsyncClient().generate(
-                model=OLLAMA_MODEL_NAME,
-                prompt=user_prompt,
-                system=system_prompt,
-                format="json",
-                options={"temperature": 0.2, "num_ctx": 2048, "num_predict": 150}
+        async with api_lock:
+            ai_model = genai.GenerativeModel(
+                model_name=GEMINI_MODEL_NAME,
+                system_instruction=system_prompt
+            )
+            response = await ai_model.generate_content_async(
+                user_prompt,
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json",
+                    temperature=0.2
+                )
             )
         
-        response_text = response['response'].strip()
+        response_text = response.text.strip()
         data = json.loads(response_text)
         
         return ResumeResponse(
+            atsScore=int(data.get("atsScore", data.get("experienceMatch", 50))),
             skillsFound=data.get("skillsFound", []),
-            experienceMatch=int(data.get("experienceMatch", 50)),
+            missingSkills=data.get("missingSkills", []),
+            improvements=data.get("improvements", []),
             feedback=data.get("feedback", "No feedback provided.")
         )
     except Exception as e:
