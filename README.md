@@ -100,3 +100,5 @@ Before starting, ensure an active internet connection to connect to MongoDB Atla
    ```
 
 The web application will be accessible at `http://localhost:5173` (check the frontend terminal for the exact URL).
+<img width="1555" height="868" alt="image" src="https://github.com/user-attachments/assets/649d9091-f1ae-4d61-ac92-9ce926d0c209" />
+
