@@ -10,6 +10,7 @@ import jobRoutes from "./routes/jobRoutes.js";
 import applicationRoutes from "./routes/applicationRoutes.js";
 import resumeRoutes from "./routes/resumeRoutes.js";
 import leaderboardRoutes from "./routes/leaderboardRoutes.js";
+import proctoringRoutes from "./routes/proctoringRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 
 dotenv.config();
@@ -56,6 +57,7 @@ app.use("/api/jobs", jobRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/resume", resumeRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
+app.use("/api/proctoring", proctoringRoutes);
 
 io.on("connection", (socket) => {
     console.log(`A user Connected ${socket.id}`);

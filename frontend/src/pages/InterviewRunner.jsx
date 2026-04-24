@@ -5,6 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getSessionById, submitAnswer, endSession } from '../features/sessions/sessionSlice';
 import MonacoEditor from '@monaco-editor/react';
 import { toast } from 'react-toastify';
+import ProctoringSystem from '../components/ProctoringSystem';
 
 const SUPPORTED_LANGUAGES = [
   { label: 'JavaScript', value: 'javascript' },
@@ -212,8 +213,9 @@ function InterviewRunner() {
   const currentDraft = drafts[currentQuestionIndex] || {};
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 pb-32 relative">
-      {/* Background glow */}
+    <ProctoringSystem sessionId={sessionId}>
+      <div className="max-w-7xl mx-auto px-4 py-8 pb-32 relative">
+        {/* Background glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-neon-cyan/5 blur-[150px] rounded-full pointer-events-none -z-10 animate-blob"></div>
 
       <div className="flex justify-between items-center glass-panel p-6 rounded-[2rem] shadow-2xl mb-6 relative z-10">
@@ -340,6 +342,15 @@ function InterviewRunner() {
                     domReadOnly: isQuestionLocked,
                     padding: { top: 16 }
                   }}
+                  onMount={(editor, monaco) => {
+                    editor.onKeyDown((e) => {
+                      if ((e.ctrlKey || e.metaKey) && e.keyCode === monaco.KeyCode.KeyV) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toast.error("WARNING: Pasting code is strictly prohibited!");
+                      }
+                    });
+                  }}
                 />
               </div>
             </div>
@@ -396,6 +407,7 @@ function InterviewRunner() {
         </button>
       </div>
     </div>
+    </ProctoringSystem>
   );
 }
 

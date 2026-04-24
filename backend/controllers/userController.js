@@ -42,11 +42,11 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // 4. Create User: Create the document in the database
     // Note: The password will be automatically hashed before saving by the pre('save') hook in models/User.js
-    const user = await User.create({ 
-        name, 
-        email, 
+    const user = await User.create({
+        name,
+        email,
         password,
-        accountRole: accountRole === 'recruiter' ? 'recruiter' : 'student' 
+        accountRole: accountRole === 'recruiter' ? 'recruiter' : 'student'
     });
 
     // 5. Respond: If user creation is successful, return the user details along with a new JWT token
@@ -93,7 +93,7 @@ const loginUser = asyncHandler(async (req, res) => {
         });
     } else {
         // Validation failure - respond with unauthorized status
-        res.status(401); 
+        res.status(401);
         throw new Error('Invalid email or password.');
     }
 });
@@ -105,14 +105,14 @@ const loginUser = asyncHandler(async (req, res) => {
  */
 const googleLogin = asyncHandler(async (req, res) => {
     // 1. Extract the Google credentials token sent from the frontend GoogleLogin component
-    const { token } = req.body; 
+    const { token } = req.body;
 
     // 2. Cryptographically verify the token with Google to ensure it wasn't forged
     const ticket = await client.verifyIdToken({
         idToken: token,
         audience: process.env.GOOGLE_CLIENT_ID,
     });
-    
+
     // 3. Extract the verified user data payload guaranteed by Google
     const payload = ticket.getPayload();
     const { email_verified, name, email, sub: googleId } = payload;
@@ -122,7 +122,7 @@ const googleLogin = asyncHandler(async (req, res) => {
         res.status(401);
         throw new Error('Google email not verified. Login failed.');
     }
-    
+
     // 4. Check if the user already exists in our system
     let user = await User.findOne({ email });
 
@@ -185,8 +185,8 @@ const getUserProfile = asyncHandler(async (req, res) => {
  * @route   PUT /api/users/profile
  * @access  Private (Requires Token)
  */
-const updateUserProfile = asyncHandler(async(req, res)=>{
-    if(req.user){
+const updateUserProfile = asyncHandler(async (req, res) => {
+    if (req.user) {
         const user = await User.findById(req.user._id);
 
         if (!user) {
@@ -201,9 +201,9 @@ const updateUserProfile = asyncHandler(async(req, res)=>{
         if (req.body.skills !== undefined) {
             user.skills = req.body.skills;
         }
-        
+
         // Only update password if a new one is provided (which will be hashed automatically by the hook)
-        if(req.body.password){
+        if (req.body.password) {
             user.password = req.body.password;
         }
 

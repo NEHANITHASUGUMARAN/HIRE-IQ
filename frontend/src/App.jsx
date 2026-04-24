@@ -25,29 +25,31 @@ const App = () => {
     <div className='min-h-screen bg-transparent transition-colors duration-500'>
       <Header />
       <main className='container mx-auto p-4'>
-        <Routes>
-          <Route path='/' element={<Home />} />
-          <Route path='/login' element={<Login />} />
-          <Route path='/register' element={<Register />} />
-          
-          <Route path='/jobs' element={<JobBoard />} />
-          <Route path='/apply/:jobId' element={<ApplyJob />} />
-          <Route path='/leaderboard' element={<Leaderboard />} />
-          
-          <Route path='/dashboard' element={<PrivateRoute />}>
-            <Route index element={<Dashboard />} />
-            <Route path='profile' element={<ErrorBoundary><Profile /></ErrorBoundary>} />
-            <Route path='recruiter' element={<RecruiterDashboard />} />
-            <Route path='resume' element={<ResumeAnalyzer />} />
-          </Route>
-          
-          <Route path='/' element={<PrivateRoute />}>
-            <Route path='/interview/:sessionId' element={<InterviewRunner />} />
-            <Route path="/review/:sessionId" element={<SessionReview />} />
-          </Route>
-          
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path='/' element={<Home />} />
+              <Route path='/login' element={<Login />} />
+              <Route path='/register' element={<Register />} />
+              
+              <Route path='/jobs' element={<JobBoard />} />
+              <Route path='/apply/:jobId' element={<ApplyJob />} />
+              <Route path='/leaderboard' element={<Leaderboard />} />
+              
+              <Route path='/dashboard' element={<PrivateRoute />}>
+                <Route index element={<Dashboard />} />
+                <Route path='profile' element={<Profile />} />
+                <Route path='recruiter' element={<RecruiterDashboard />} />
+                <Route path='resume' element={<ResumeAnalyzer />} />
+              </Route>
+              
+              <Route path='/' element={<PrivateRoute />}>
+                <Route path='/interview/:sessionId' element={<InterviewRunner />} />
+                <Route path="/review/:sessionId" element={<SessionReview />} />
+              </Route>
+              
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </ErrorBoundary>
 
       </main>
       <ToastContainer position='top-right' autoClose={3000}/>

@@ -72,8 +72,10 @@ class ResumeRequest(BaseModel):
     job_role: str
 
 class ResumeResponse(BaseModel):
+    atsScore: int
     skillsFound: list[str]
-    experienceMatch: int
+    missingSkills: list[str]
+    improvements: list[str]
     feedback: str
 
 @app.get("/")
@@ -237,11 +239,11 @@ async def evaluate(request:EvaluationRequest):
 async def analyze_resume(request: ResumeRequest):
     try:
         system_prompt = (
-            "You are an expert AI Technical Recruiter. "
+            "You are an expert AI Technical Recruiter and ATS (Applicant Tracking System). "
             "Analyze the provided Resume Text against the Job Role. "
             "Return ONLY a JSON object exactly matching this structure with NO markdown or conversational text: "
-            "{\"skillsFound\": [\"React\", \"Node\"], \"experienceMatch\": 85, \"feedback\": \"Good fit but lacks AWS.\"} "
-            "experienceMatch MUST be an integer between 0 and 100."
+            "{\"atsScore\": 85, \"skillsFound\": [\"React\"], \"missingSkills\": [\"AWS\"], \"improvements\": [\"Add quantifiable metrics\"], \"feedback\": \"Good fit but...\"} "
+            "atsScore MUST be an integer between 0 and 100 based on standard industry ATS evaluation metrics."
         )
         user_prompt = f"Job Role: {request.job_role}\n\nResume Text:\n{request.resume_text}"
 
@@ -251,15 +253,17 @@ async def analyze_resume(request: ResumeRequest):
                 prompt=user_prompt,
                 system=system_prompt,
                 format="json",
-                options={"temperature": 0.2, "num_ctx": 2048, "num_predict": 150}
+                options={"temperature": 0.2, "num_ctx": 2048, "num_predict": 300}
             )
         
         response_text = response['response'].strip()
         data = json.loads(response_text)
         
         return ResumeResponse(
+            atsScore=int(data.get("atsScore", data.get("experienceMatch", 50))),
             skillsFound=data.get("skillsFound", []),
-            experienceMatch=int(data.get("experienceMatch", 50)),
+            missingSkills=data.get("missingSkills", []),
+            improvements=data.get("improvements", []),
             feedback=data.get("feedback", "No feedback provided.")
         )
     except Exception as e:

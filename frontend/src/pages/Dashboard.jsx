@@ -154,7 +154,7 @@ const Dashboard = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-white/10 pb-6 sm:pb-8">
         <div>
           <h1 className="text-2xl sm:text-4xl font-black text-slate-800 dark:text-white tracking-tight font-display transition-colors">
-            Welcome, <span className="gradient-text">{user.name.split(' ')[0]}</span>
+            Welcome, <span className="gradient-text">{user?.name ? user.name.split(' ')[0] : 'User'}</span>
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm sm:text-lg font-medium transition-colors">Ready for your technical prep?</p>
         </div>
